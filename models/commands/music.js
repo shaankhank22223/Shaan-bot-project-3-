@@ -39,7 +39,7 @@ function getVideoID(url) {
 }
 
 module.exports.config = {
-    name: "yt",
+    name: "music",
     version: "2.0.0",
     credits: "SHAAN-KHAN", // 🔐 DO NOT CHANGE
     hasPermssion: 0,
