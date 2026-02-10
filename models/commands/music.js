@@ -25,8 +25,8 @@ function getVideoID(url) {
 }
 
 module.exports.config = {
-    name: "music",
-    version: "1.2.5",
+    name: " music",
+    version: "1.2.6", // Updated version
     credits: "Shaan Khan", // 🔐 DO NOT CHANGE
     hasPermssion: 0,
     cooldowns: 5,
@@ -40,41 +40,52 @@ module.exports.run = async function({ api, args, event }) {
         checkCredits(); // 🔐 Validation check
 
         let videoID, searchMsg, songTitle;
-        const input = args[0];
+        const input = args.join(" ");
 
-        if (input && (input.includes("youtube.com") || input.includes("youtu.be"))) {
+        if (!input) return api.sendMessage("❌ Song ka naam ya URL likho!", event.threadID, event.messageID);
+
+        // Searching message
+        searchMsg = await api.sendMessage(`✅ Apki Request Jari Hai Please wait...`, event.threadID);
+
+        // Check if input is a URL or Search Query
+        if (input.includes("youtube.com") || input.includes("youtu.be")) {
             videoID = getVideoID(input);
-            if (!videoID) return api.sendMessage("❌ Galat YouTube URL!", event.threadID, event.messageID);
+            songTitle = "YouTube Music";
         } else {
-            const query = args.join(" ");
-            if (!query) return api.sendMessage("❌ Song ka naam likho!", event.threadID, event.messageID);
-
-            // Searching message changed as per your request
-            searchMsg = await api.sendMessage(`✅ Apki Request Jari Hai Please wait...`, event.threadID);
-            
-            // Background mein "official audio" search karega taaki result sahi aaye
-            const result = await yts(query + " official audio");
-            if (!result.videos.length) return api.sendMessage("❌ Koi result nahi mila!", event.threadID);
-            
-            const selectedVideo = result.videos[0]; 
-            videoID = selectedVideo.videoId;
-            songTitle = selectedVideo.title;
+            const result = await yts(input + " official audio");
+            if (!result.videos.length) {
+                if (searchMsg) api.unsendMessage(searchMsg.messageID);
+                return api.sendMessage("❌ Koi result nahi mila!", event.threadID);
+            }
+            videoID = result.videos[0].videoId;
+            songTitle = result.videos[0].title;
         }
 
-        // Render API Calling
-        const downloadUrl = `${MY_RENDER_API}/download?url=https://www.youtube.com/watch?v=${videoID}`;
+        if (!videoID) {
+            if (searchMsg) api.unsendMessage(searchMsg.messageID);
+            return api.sendMessage("❌ Valid YouTube link nahi mila!", event.threadID);
+        }
 
-        // Stream bhejte waqt purana message delete karna
-        if (searchMsg?.messageID) api.unsendMessage(searchMsg.messageID);
+        // 🔥 FIX: Correct URL structure for Render API
+        const youtubeLink = `https://www.youtube.com/watch?v=${videoID}`;
+        const downloadUrl = `${MY_RENDER_API}/download?url=${encodeURIComponent(youtubeLink)}`;
+
+        // Get the stream
+        const audioStream = await getStreamFromURL(downloadUrl, `music.mp3`);
+
+        // Message bhejne se pehle purana status delete karein
+        if (searchMsg) api.unsendMessage(searchMsg.messageID);
 
         return api.sendMessage({
-            body: `🎵 Title: ${songTitle || "YouTube Music"}\n👤 Credits: Shaan Khan`,
-            attachment: await getStreamFromURL(downloadUrl, `music.mp3`)
+            body: `🎵 Title: ${songTitle}\n👤 Credits: Shaan Khan`,
+            attachment: audioStream
         }, event.threadID, event.messageID);
 
     } catch (err) {
         console.error(err);
-        let errorMsg = "⚠️ Error: API Response nahi de rahi. Render dashboard check karein.";
+        if (searchMsg) api.unsendMessage(searchMsg.messageID);
+
+        let errorMsg = "⚠️ Error: API Response nahi de rahi. Render dashboard check karein ki server 'Active' hai ya nahi.";
         if (err.message.includes("Credits Locked")) errorMsg = err.message;
         
         return api.sendMessage(errorMsg, event.threadID, event.messageID);
