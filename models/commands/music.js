@@ -1,4 +1,4 @@
-Const axios = require("axios");
+const axios = require("axios");
 const yts = require("yt-search");
 
 // 🔐 CREDITS LOCK (OFFICIAL)
