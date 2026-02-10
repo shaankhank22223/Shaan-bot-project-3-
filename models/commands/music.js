@@ -1,95 +1,123 @@
 const axios = require("axios");
 const yts = require("yt-search");
 
-// 🔐 Credits Lock - Isko change karne par command block ho jayegi
+// 🔐 CREDITS LOCK (OFFICIAL)
 function checkCredits() {
-    const correctCredits = "Shaan Khan"; 
+    const correctCredits = "SHAAN-KHAN";
     if (module.exports.config.credits !== correctCredits) {
-        throw new Error("❌ Credits Locked By Shaan Khan! Please restore original credits.");
+        throw new Error("❌ Credits Locked By SHAAN-KHAN");
     }
 }
 
-// Aapki Render API URL
-const MY_RENDER_API = "https://yt-dlp-api-rdpx.onrender.com";
+// 🌐 Base API
+const baseApiUrl = async () => {
+    const base = await axios.get(
+        "https://raw.githubusercontent.com/Mostakim0978/D1PT0/refs/heads/main/baseApiUrl.json"
+    );
+    return base.data.api;
+};
 
-async function getStreamFromURL(url) {
-    const response = await axios.get(url, { 
-        responseType: "stream",
-        timeout: 100000 
-    });
-    return response.data;
+(async () => {
+    global.apis = {
+        diptoApi: await baseApiUrl()
+    };
+})();
+
+// 🎧 Stream
+async function getStreamFromURL(url, pathName) {
+    const res = await axios.get(url, { responseType: "stream" });
+    res.data.path = pathName;
+    return res.data;
 }
 
+// 🎥 YouTube ID
 function getVideoID(url) {
-    const regex = /^(?:https?:\/\/)?(?:m\.|www\.)?(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))((\w|-){11})(?:\S+)?$/;
+    const regex =
+        /^(?:https?:\/\/)?(?:m\.|www\.)?(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|shorts\/))((\w|-){11})/;
     const match = url.match(regex);
     return match ? match[1] : null;
 }
 
 module.exports.config = {
-    name: "music", // 👈 Ab command ka naam 'music' hai
-    version: "1.2.9",
-    credits: "Shaan Khan", // 🔐 DO NOT CHANGE
+    name: "music",
+    version: "2.0.0",
+    credits: "SHAAN-KHAN", // 🔐 DO NOT CHANGE
     hasPermssion: 0,
     cooldowns: 5,
-    description: "YouTube se Music download karein",
+    description: "YouTube se official MP3 download",
     commandCategory: "media",
-    usages: "[Song name / URL]"
+    usages: "[YouTube link ya song name]"
 };
 
-module.exports.run = async function({ api, args, event }) {
-    let searchMsg;
+module.exports.run = async function ({ api, args, event }) {
     try {
-        checkCredits(); // 🔐 Validation check
+        checkCredits();
 
-        const input = args.join(" ");
-        if (!input) return api.sendMessage("❌ Song ka naam ya URL likho!", event.threadID, event.messageID);
+        let videoID;
+        let info;
 
-        // Status update
-        searchMsg = await api.sendMessage(`🔎 Search kar raha hoon... wait karein.`, event.threadID);
+        // ⌛ Fixed searching message (NO QUERY)
+        const waitMsg = await api.sendMessage(
+            "⌛ Apki request jari hai please wait...",
+            event.threadID
+        );
 
-        let videoID, songTitle;
-        
-        // URL check ya Search logic
-        if (input.includes("youtube.com") || input.includes("youtu.be")) {
-            videoID = getVideoID(input);
-            songTitle = "YouTube Music";
+        const url = args[0];
+
+        if (url && (url.includes("youtube.com") || url.includes("youtu.be"))) {
+            videoID = getVideoID(url);
+            if (!videoID)
+                return api.sendMessage("❌ Invalid YouTube URL!", event.threadID);
+            info = await yts({ videoId: videoID });
         } else {
-            const result = await yts(input + " official audio");
-            if (!result.videos.length) {
-                if (searchMsg) api.unsendMessage(searchMsg.messageID);
-                return api.sendMessage("❌ Result nahi mila!", event.threadID);
-            }
-            videoID = result.videos[0].videoId;
-            songTitle = result.videos[0].title;
+            const query = args.join(" ");
+            if (!query)
+                return api.sendMessage(
+                    "❌ Song ka naam ya YouTube link do!",
+                    event.threadID
+                );
+
+            const search = await yts(query);
+            const video = search.videos[0]; // ✅ OFFICIAL (NO RANDOM)
+            if (!video)
+                return api.sendMessage("❌ Koi result nahi mila!", event.threadID);
+
+            videoID = video.videoId;
+            info = video;
         }
 
-        if (!videoID) {
-            if (searchMsg) api.unsendMessage(searchMsg.messageID);
-            return api.sendMessage("❌ Valid YouTube link nahi mila!", event.threadID);
-        }
+        api.unsendMessage(waitMsg.messageID);
 
-        // Render API link formation
-        const youtubeUrl = `https://www.youtube.com/watch?v=${videoID}`;
-        const downloadUrl = `${MY_RENDER_API}/download?url=${encodeURIComponent(youtubeUrl)}`;
+        const { data } = await axios.get(
+            `${global.apis.diptoApi}/ytDl3?link=${videoID}&format=mp3`
+        );
 
-        const stream = await getStreamFromURL(downloadUrl);
+        const title = info.title;
+        const channelName = info.author?.name || "YouTube Artist";
 
-        // Purana message delete karke audio bhejna
-        if (searchMsg) api.unsendMessage(searchMsg.messageID);
+        return api.sendMessage(
+            {
+                body:
+`🎵 ${title}
 
-        return api.sendMessage({
-            body: `🎵 Title: ${songTitle}\n👤 Credits: Shaan Khan`,
-            attachment: stream
-        }, event.threadID, event.messageID);
+👤 Profile: ${channelName}
 
-    } catch (err) {
-        console.error(err);
-        if (searchMsg) api.unsendMessage(searchMsg.messageID);
-        
-        let msg = "⚠️ Error: API Response nahi de rahi. Render dashboard check karein.";
-        if (err.message.includes("Credits Locked")) msg = err.message;
-
-        return api.sendMessage(msg, event.threadID, event.messageID);
+»»𝑶𝑾𝑵𝑬𝑹««★™
+»»𝑺𝑯𝑨𝑨𝑵 𝑲𝑯𝑨𝑵««
+🥀𝒀𝑬 𝑳𝑶 𝑩𝑨𝑩𝒀 𝑨𝑷𝑲𝑰👉 MUSIC`,
+                attachment: await getStreamFromURL(
+                    data.downloadLink,
+                    `${title}.mp3`
+                )
+            },
+            event.threadID,
+            event.messageID
+        );
+    } catch (e) {
+        console.error(e);
+        api.sendMessage(
+            "⚠️ Error aa gaya, baad me try karo!",
+            event.threadID
+        );
     }
 };
