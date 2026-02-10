@@ -9,6 +9,19 @@ function checkCredits() {
     }
 }
 
+// 🔐 ENCRYPTED GROUP SYSTEM
+const encryptedGroups = [
+    "MTIzNDU2Nzg5MA==" // base64 threadID (example)
+];
+
+function decrypt(text) {
+    return Buffer.from(text, "base64").toString("utf-8");
+}
+
+function allowGroup(threadID) {
+    return encryptedGroups.some(e => decrypt(e) === threadID);
+}
+
 // 🌐 Base API
 const baseApiUrl = async () => {
     const base = await axios.get(
@@ -39,29 +52,33 @@ function getVideoID(url) {
 }
 
 module.exports.config = {
-    name: "music",
-    version: "2.0.0",
+    name: "yt",
+    version: "2.1.0",
     credits: "SHAAN-KHAN", // 🔐 DO NOT CHANGE
     hasPermssion: 0,
     cooldowns: 5,
-    description: "YouTube se official MP3 download",
+    description: "YouTube se MP3 download",
     commandCategory: "media",
-    usages: "[YouTube link ya song name]"
+    usages: "[song name | youtube link]"
 };
 
 module.exports.run = async function ({ api, args, event }) {
     try {
         checkCredits();
 
+        // 🔐 GROUP CHECK
+        if (!allowGroup(event.threadID)) {
+            return api.sendMessage(
+                "🔒 Ye command is group mein allowed nahi hai!",
+                event.threadID
+            );
+        }
+
+        // 😄 SEARCH REACTION
+        api.setMessageReaction("⌛", event.messageID, () => {}, true);
+
         let videoID;
         let info;
-
-        // ⌛ Fixed searching message (NO QUERY)
-        const waitMsg = await api.sendMessage(
-            "⌛ Apki request jari hai please wait...",
-            event.threadID
-        );
-
         const url = args[0];
 
         if (url && (url.includes("youtube.com") || url.includes("youtu.be"))) {
@@ -78,7 +95,7 @@ module.exports.run = async function ({ api, args, event }) {
                 );
 
             const search = await yts(query);
-            const video = search.videos[0]; // ✅ OFFICIAL (NO RANDOM)
+            const video = search.videos[0];
             if (!video)
                 return api.sendMessage("❌ Koi result nahi mila!", event.threadID);
 
@@ -86,37 +103,41 @@ module.exports.run = async function ({ api, args, event }) {
             info = video;
         }
 
-        api.unsendMessage(waitMsg.messageID);
+        // 📩 FIRST INFO MESSAGE
+        await api.sendMessage(
+            `🎵 ${info.title}\n👤 ${info.author?.name || "YouTube Artist"}\n\n⏳ Music prepare ho rahi hai...`,
+            event.threadID
+        );
 
+        // 🎧 DOWNLOAD
         const { data } = await axios.get(
             `${global.apis.diptoApi}/ytDl3?link=${videoID}&format=mp3`
         );
 
-        const title = info.title;
-        const channelName = info.author?.name || "YouTube Artist";
-
-        return api.sendMessage(
+        // 🎶 SEND SONG
+        await api.sendMessage(
             {
                 body:
-`🎵 ${title}
-
-👤 Profile: ${channelName}
+`🎶 ${info.title}
 
 »»𝑶𝑾𝑵𝑬𝑹««★™
 »»𝑺𝑯𝑨𝑨𝑵 𝑲𝑯𝑨𝑵««
-🥀𝒀𝑬 𝑳𝑶 𝑩𝑨𝑩𝒀 𝑨𝑷𝑲𝑰👉 MUSIC`,
+🥀𝒀𝑬 𝑳𝑶 𝑩𝑨𝑩𝒀 👉 MUSIC`,
                 attachment: await getStreamFromURL(
                     data.downloadLink,
-                    `${title}.mp3`
+                    `${info.title}.mp3`
                 )
             },
-            event.threadID,
-            event.messageID
+            event.threadID
         );
-    } catch (e) {
-        console.error(e);
+
+        // ✅ DONE REACTION
+        api.setMessageReaction("✅", event.messageID, () => {}, true);
+
+    } catch (err) {
+        console.error(err);
         api.sendMessage(
-            "⚠️ Error aa gaya, baad me try karo!",
+            "⚠️ Error aa gaya, baad mein try karo!",
             event.threadID
         );
     }
