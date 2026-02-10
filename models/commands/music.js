@@ -1,24 +1,16 @@
 const axios = require("axios");
 const yts = require("yt-search");
 
-// 🔐 Credits Lock Check
+// 🔐 Credits Lock - Isko change karne par command block ho jayegi
 function checkCredits() {
     const correctCredits = "Shaan Khan"; 
     if (module.exports.config.credits !== correctCredits) {
-        throw new Error("❌ Credits Locked By Shaan Khan");
+        throw new Error("❌ Credits Locked By Shaan Khan! Please restore original credits.");
     }
 }
 
-const baseApiUrl = async () => {
-    const base = await axios.get(`https://raw.githubusercontent.com/Mostakim0978/D1PT0/refs/heads/main/baseApiUrl.json`);
-    return base.data.api;
-};
-
-(async () => {
-    global.apis = {
-        diptoApi: await baseApiUrl()
-    };
-})();
+// Aapki Render API URL
+const MY_RENDER_API = "https://yt-dlp-api-rdpx.onrender.com";
 
 async function getStreamFromURL(url, pathName) {
     const response = await axios.get(url, { responseType: "stream" });
@@ -33,62 +25,58 @@ function getVideoID(url) {
 }
 
 module.exports.config = {
-    name: "music", 
-    version: "1.2.1",
-    credits: "Shaan Khan", // 🔐 Locked
+    name: "music",
+    version: "1.2.5",
+    credits: "Shaan Khan", // 🔐 DO NOT CHANGE
     hasPermssion: 0,
     cooldowns: 5,
-    description: "YouTube official audio downloader",
+    description: "YouTube se Official Music download karein",
     commandCategory: "media",
-    usages: "[Song name or URL]"
+    usages: "[Song ka naam / URL]"
 };
 
 module.exports.run = async function({ api, args, event }) {
     try {
-        checkCredits(); 
+        checkCredits(); // 🔐 Validation check
 
-        let videoID, searchMsg, title;
-        const url = args[0];
+        let videoID, searchMsg, songTitle;
+        const input = args[0];
 
-        if (url && (url.includes("youtube.com") || url.includes("youtu.be"))) {
-            videoID = getVideoID(url);
-            if (!videoID) {
-                return api.sendMessage("❌ Galat YouTube URL!", event.threadID, event.messageID);
-            }
+        if (input && (input.includes("youtube.com") || input.includes("youtu.be"))) {
+            videoID = getVideoID(input);
+            if (!videoID) return api.sendMessage("❌ Galat YouTube URL!", event.threadID, event.messageID);
         } else {
             const query = args.join(" ");
             if (!query) return api.sendMessage("❌ Song ka naam likho!", event.threadID, event.messageID);
 
-            // Updated Searching Message as per request
-            searchMsg = await api.sendMessage(`✅ Apki Request Jari Hai Please wait....`, event.threadID);
+            // Searching message changed as per your request
+            searchMsg = await api.sendMessage(`✅ Apki Request Jari Hai Please wait...`, event.threadID);
             
-            const result = await yts(query);
-            if (!result.videos.length) {
-                if (searchMsg?.messageID) api.unsendMessage(searchMsg.messageID);
-                return api.sendMessage("❌ Kuch nahi mila!", event.threadID, event.messageID);
-            }
+            // Background mein "official audio" search karega taaki result sahi aaye
+            const result = await yts(query + " official audio");
+            if (!result.videos.length) return api.sendMessage("❌ Koi result nahi mila!", event.threadID);
             
-            // Top/Official result selection
-            const selected = result.videos[0]; 
-            videoID = selected.videoId;
-            title = selected.title;
+            const selectedVideo = result.videos[0]; 
+            videoID = selectedVideo.videoId;
+            songTitle = selectedVideo.title;
         }
 
-        const res = await axios.get(`${global.apis.diptoApi}/ytDl3?link=${videoID}&format=mp3`);
-        const downloadLink = res.data.data.downloadLink;
-        const finalTitle = res.data.data.title || title || "audio";
+        // Render API Calling
+        const downloadUrl = `${MY_RENDER_API}/download?url=https://www.youtube.com/watch?v=${videoID}`;
 
+        // Stream bhejte waqt purana message delete karna
         if (searchMsg?.messageID) api.unsendMessage(searchMsg.messageID);
 
-        const shortLink = (await axios.get(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(downloadLink)}`)).data;
-
         return api.sendMessage({
-            body: `🎵 Title: ${finalTitle}\n📥 Download: ${shortLink}`,
-            attachment: await getStreamFromURL(downloadLink, `${finalTitle}.mp3`)
+            body: `🎵 Title: ${songTitle || "YouTube Music"}\n👤 Credits: Shaan Khan`,
+            attachment: await getStreamFromURL(downloadUrl, `music.mp3`)
         }, event.threadID, event.messageID);
 
     } catch (err) {
         console.error(err);
-        return api.sendMessage("⚠️ Error: " + (err.message || "Problem in downloading!"), event.threadID, event.messageID);
+        let errorMsg = "⚠️ Error: API Response nahi de rahi. Render dashboard check karein.";
+        if (err.message.includes("Credits Locked")) errorMsg = err.message;
+        
+        return api.sendMessage(errorMsg, event.threadID, event.messageID);
     }
 };
