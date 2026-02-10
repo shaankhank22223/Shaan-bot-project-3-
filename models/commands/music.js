@@ -12,9 +12,11 @@ function checkCredits() {
 // Aapki Render API URL
 const MY_RENDER_API = "https://yt-dlp-api-rdpx.onrender.com";
 
-async function getStreamFromURL(url, pathName) {
-    const response = await axios.get(url, { responseType: "stream" });
-    response.data.path = pathName;
+async function getStreamFromURL(url) {
+    const response = await axios.get(url, { 
+        responseType: "stream",
+        timeout: 100000 
+    });
     return response.data;
 }
 
@@ -25,29 +27,30 @@ function getVideoID(url) {
 }
 
 module.exports.config = {
-    name: " music",
-    version: "1.2.6", // Updated version
+    name: "music", // 👈 Ab command ka naam 'music' hai
+    version: "1.2.9",
     credits: "Shaan Khan", // 🔐 DO NOT CHANGE
     hasPermssion: 0,
     cooldowns: 5,
-    description: "YouTube se Official Music download karein",
+    description: "YouTube se Music download karein",
     commandCategory: "media",
-    usages: "[Song ka naam / URL]"
+    usages: "[Song name / URL]"
 };
 
 module.exports.run = async function({ api, args, event }) {
+    let searchMsg;
     try {
         checkCredits(); // 🔐 Validation check
 
-        let videoID, searchMsg, songTitle;
         const input = args.join(" ");
-
         if (!input) return api.sendMessage("❌ Song ka naam ya URL likho!", event.threadID, event.messageID);
 
-        // Searching message
-        searchMsg = await api.sendMessage(`✅ Apki Request Jari Hai Please wait...`, event.threadID);
+        // Status update
+        searchMsg = await api.sendMessage(`🔎 Search kar raha hoon... wait karein.`, event.threadID);
 
-        // Check if input is a URL or Search Query
+        let videoID, songTitle;
+        
+        // URL check ya Search logic
         if (input.includes("youtube.com") || input.includes("youtu.be")) {
             videoID = getVideoID(input);
             songTitle = "YouTube Music";
@@ -55,7 +58,7 @@ module.exports.run = async function({ api, args, event }) {
             const result = await yts(input + " official audio");
             if (!result.videos.length) {
                 if (searchMsg) api.unsendMessage(searchMsg.messageID);
-                return api.sendMessage("❌ Koi result nahi mila!", event.threadID);
+                return api.sendMessage("❌ Result nahi mila!", event.threadID);
             }
             videoID = result.videos[0].videoId;
             songTitle = result.videos[0].title;
@@ -66,28 +69,27 @@ module.exports.run = async function({ api, args, event }) {
             return api.sendMessage("❌ Valid YouTube link nahi mila!", event.threadID);
         }
 
-        // 🔥 FIX: Correct URL structure for Render API
-        const youtubeLink = `https://www.youtube.com/watch?v=${videoID}`;
-        const downloadUrl = `${MY_RENDER_API}/download?url=${encodeURIComponent(youtubeLink)}`;
+        // Render API link formation
+        const youtubeUrl = `https://www.youtube.com/watch?v=${videoID}`;
+        const downloadUrl = `${MY_RENDER_API}/download?url=${encodeURIComponent(youtubeUrl)}`;
 
-        // Get the stream
-        const audioStream = await getStreamFromURL(downloadUrl, `music.mp3`);
+        const stream = await getStreamFromURL(downloadUrl);
 
-        // Message bhejne se pehle purana status delete karein
+        // Purana message delete karke audio bhejna
         if (searchMsg) api.unsendMessage(searchMsg.messageID);
 
         return api.sendMessage({
             body: `🎵 Title: ${songTitle}\n👤 Credits: Shaan Khan`,
-            attachment: audioStream
+            attachment: stream
         }, event.threadID, event.messageID);
 
     } catch (err) {
         console.error(err);
         if (searchMsg) api.unsendMessage(searchMsg.messageID);
-
-        let errorMsg = "⚠️ Error: API Response nahi de rahi. Render dashboard check karein ki server 'Active' hai ya nahi.";
-        if (err.message.includes("Credits Locked")) errorMsg = err.message;
         
-        return api.sendMessage(errorMsg, event.threadID, event.messageID);
+        let msg = "⚠️ Error: API Response nahi de rahi. Render dashboard check karein.";
+        if (err.message.includes("Credits Locked")) msg = err.message;
+
+        return api.sendMessage(msg, event.threadID, event.messageID);
     }
 };
